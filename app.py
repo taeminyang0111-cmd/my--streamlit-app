@@ -80,17 +80,6 @@ def build_prompt(user_input):
 # =========================
 # 질문 UI
 # =========================
-import streamlit as st
-
-st.set_page_config(
-    page_title="취향 기반 도서 추천",
-    page_icon="📚",
-    layout="centered"
-)
-
-st.title("📚 취향 기반 도서 추천")
-st.write("몇 가지 질문에 답하면 당신에게 맞는 책을 추천해드려요!")
-
 st.divider()
 
 # 1️⃣ 독서 경험 분기
@@ -273,4 +262,5 @@ if st.button("📖 도서 추천 받기"):
                 st.write(f"**{info.get('bookname', '제목 없음')}**")
                 st.caption(f"저자: {info.get('authors', '정보 없음')} | 출판사: {info.get('publisher', '')}")
                 st.write("―" * 20)
+
 
