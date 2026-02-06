@@ -70,7 +70,7 @@ def build_main_prompt(user_input):
 특히 '연령대'와 '선호하는 책의 분야'를 가장 중요한 기준으로 삼아
 이 사용자에게 지금 가장 잘 맞는 책 추천 방향을 설정하라.
 
-출력 형식:
+출력 형식 (반드시 지킬 것):
 독서성향: <한 문장>
 대표추천: <키워드 1개>
 보조추천: <키워드 1>, <키워드 2>
@@ -91,42 +91,68 @@ def build_reason_prompt(profile, title, description):
 {description}
 
 이 사용자에게 이 책을 추천하는 이유를
-한 문장으로 설명하라.
+한 문장으로 자연스럽게 설명하라.
 """
 
 # =========================
 # 질문 UI
 # =========================
-age = st.radio("연령대", ["10대", "20대 초반", "20대 후반", "30대", "40대", "50대 이상"])
+st.subheader("0. 연령대")
+age = st.radio("연령대 선택", ["10대", "20대 초반", "20대 후반", "30대", "40대", "50대 이상"])
 
 st.subheader("📚 선호하는 책의 분야")
-book_fields = st.multiselect(
-    "관심 있거나 자주 고르는 분야를 선택해주세요",
+book_field = st.radio(
+    "가장 관심 있거나 자주 읽는 분야를 하나 선택해주세요",
     [
-        "소설·문학", "에세이", "자기계발", "인문·철학",
-        "사회·시사", "경제·경영", "과학·기술",
-        "역사", "판타지/SF", "추리·스릴러", "가볍게 읽는 교양"
+        "소설·문학",
+        "에세이",
+        "자기계발",
+        "인문·철학",
+        "사회·시사",
+        "경제·경영",
+        "과학·기술",
+        "역사",
+        "판타지/SF",
+        "추리·스릴러",
+        "가볍게 읽는 교양"
     ]
 )
 
+st.subheader("요즘 상태는 어떤가요?")
 mood = st.radio(
-    "요즘 상태는 어떤가요?",
+    "현재 상태",
     ["지치고 위로가 필요함", "잔잔하지만 공허함", "새로운 자극이 필요함", "비교적 안정적"]
 )
 
+st.subheader("이야기에서 더 중요한 것은?")
 story_pref = st.radio(
-    "이야기에서 더 중요한 것은?",
+    "서사 선호",
     ["감정과 관계", "사건과 전개", "메시지와 생각"]
 )
 
+st.subheader("읽을 수 있는 분량은?")
 volume = st.radio(
-    "읽을 수 있는 분량은?",
+    "분량 허용도",
     ["얇은 책이 좋다", "보통", "두꺼워도 괜찮다"]
 )
 
-music = st.multiselect("음악 취향 🎶", ["발라드", "인디/밴드", "힙합/R&B", "클래식"])
-movie = st.multiselect("영화 취향 🎬", ["드라마", "로맨스", "판타지/SF", "스릴러"])
-goal = st.radio("독서 목적", ["힐링 / 위로", "몰입감", "자기성찰", "공부 / 성장", "가볍게"])
+st.subheader("음악 취향 🎶")
+music = st.multiselect(
+    "좋아하는 음악 장르",
+    ["발라드", "인디/밴드", "힙합/R&B", "클래식", "재즈"]
+)
+
+st.subheader("영화 취향 🎬")
+movie = st.multiselect(
+    "좋아하는 영화 장르",
+    ["드라마", "로맨스", "판타지/SF", "스릴러", "액션"]
+)
+
+st.subheader("독서 목적")
+goal = st.radio(
+    "책을 읽고 싶은 이유",
+    ["힐링 / 위로", "몰입감", "자기성찰", "공부 / 성장", "가볍게"]
+)
 
 # =========================
 # 추천 실행
@@ -134,7 +160,7 @@ goal = st.radio("독서 목적", ["힐링 / 위로", "몰입감", "자기성찰"
 if st.button("📖 도서 추천 받기"):
     user_profile = {
         "연령대": age,
-        "선호 분야": book_fields,
+        "선호 분야": book_field,
         "현재 상태": mood,
         "서사 선호": story_pref,
         "분량 허용도": volume,
@@ -150,14 +176,18 @@ if st.button("📖 도서 추천 받기"):
             temperature=0.6
         )
 
-        lines = res.output_text.splitlines()
+        lines = [l.strip() for l in res.output_text.splitlines() if l.strip()]
         profile = lines[0].replace("독서성향:", "").strip()
         main_kw = lines[1].replace("대표추천:", "").strip()
 
-    st.info(f"📌 당신의 독서 성향\n\n{profile}")
-    st.subheader("⭐ 지금 가장 추천하는 책")
+    st.success("📌 당신의 독서 성향")
+    st.info(profile)
 
+    st.subheader("⭐ 지금 가장 추천하는 책")
     books = search_kakao_books(main_kw, 3)
+
+    if not books:
+        st.caption("관련 도서를 찾지 못했어요 😢")
 
     for book in books:
         google_info = get_google_book_info(book["title"])
@@ -173,7 +203,7 @@ if st.button("📖 도서 추천 받기"):
 
         cols = st.columns([1, 4])
         with cols[0]:
-            if book["thumbnail"]:
+            if book.get("thumbnail"):
                 st.image(book["thumbnail"], width=90)
         with cols[1]:
             st.markdown(f"**{book['title']}** ({year})")
