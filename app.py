@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 from openai import OpenAI
-from datetime import datetime
 
 # =========================
 # 기본 설정
@@ -15,22 +14,27 @@ st.set_page_config(
 st.title("📚 취향 기반 도서 추천")
 st.write("몇 가지 질문에 답하면 당신에게 맞는 책을 추천해드려요!")
 
-CURRENT_YEAR = datetime.now().year
-
 # =========================
 # 🔑 API KEY 입력
 # =========================
 st.sidebar.header("🔑 API 설정")
 
-KAKAO_API_KEY = st.sidebar.text_input("Kakao REST API Key", type="password")
-OPENAI_API_KEY = st.sidebar.text_input("OpenAI API Key", type="password")
+KAKAO_API_KEY = st.sidebar.text_input(
+    "Kakao REST API Key",
+    type="password"
+)
+
+OPENAI_API_KEY = st.sidebar.text_input(
+    "OpenAI API Key",
+    type="password"
+)
 
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # =========================
 # 📚 Kakao Book Search API
 # =========================
-def search_kakao_books(keyword, year_range, size=10):
+def search_kakao_books(keyword, size=5):
     if not KAKAO_API_KEY:
         return []
 
@@ -46,20 +50,7 @@ def search_kakao_books(keyword, year_range, size=10):
             timeout=10
         )
         response.raise_for_status()
-
-        books = response.json().get("documents", [])
-        filtered = []
-
-        for book in books:
-            if not book.get("datetime"):
-                continue
-
-            publish_year = int(book["datetime"][:4])
-            if year_range[0] <= publish_year <= year_range[1]:
-                filtered.append(book)
-
-        return filtered
-
+        return response.json().get("documents", [])
     except requests.RequestException:
         return []
 
@@ -81,7 +72,7 @@ def build_prompt(user_input):
 사용자 정보:
 {user_input}
 
-출력 형식:
+출력 형식 (반드시 지킬 것):
 키워드1, 키워드2, 키워드3
 """
 
@@ -105,6 +96,7 @@ st.divider()
 st.subheader("2. 독서 취향")
 
 if reading_level.startswith(("📖", "🙂")):
+    recent_book = st.text_input("최근에 인상 깊게 읽은 책 (선택)")
     favorite_genres = st.multiselect(
         "선호 장르",
         [
@@ -125,24 +117,6 @@ else:
         ]
     )
 
-# =========================
-# 📅 출판 연도 선택 (🔥 추가)
-# =========================
-st.divider()
-st.subheader("📅 출판 연도 선호")
-
-year_range = st.slider(
-    "읽고 싶은 책의 출판 연도 범위를 선택하세요",
-    min_value=1980,
-    max_value=CURRENT_YEAR,
-    value=(2018, CURRENT_YEAR)
-)
-
-st.caption(f"선택한 범위: {year_range[0]}년 ~ {year_range[1]}년")
-
-# =========================
-# 취향 보조 질문
-# =========================
 st.divider()
 st.subheader("3. 음악 취향 🎶")
 
@@ -164,7 +138,14 @@ st.subheader("5. 독서 목적")
 
 reading_goal = st.radio(
     "책을 읽고 싶은 이유",
-    ["힐링 / 위로", "생각의 폭 확장", "몰입감", "자기성찰", "가볍게"]
+    [
+        "힐링 / 위로",
+        "생각의 폭 확장",
+        "몰입감",
+        "자기성찰",
+        "공부 / 성장",
+        "가볍게"
+    ]
 )
 
 # =========================
@@ -178,22 +159,23 @@ if st.button("📖 도서 추천 받기"):
             "독서 습관": reading_level,
             "선호 장르": favorite_genres if reading_level.startswith(("📖", "🙂")) else None,
             "독서 고민": worry if not reading_level.startswith(("📖", "🙂")) else None,
-            "출판 연도 선호": f"{year_range[0]}~{year_range[1]}",
             "음악 취향": music_genres,
             "영화 취향": movie_genres,
             "독서 목적": reading_goal
         }
 
         with st.spinner("취향 분석 중..."):
+            prompt = build_prompt(user_profile)
+
             response = client.responses.create(
                 model="gpt-4o-mini",
-                input=build_prompt(user_profile),
+                input=prompt,
                 temperature=0.7
             )
 
-            keywords = list(dict.fromkeys(
-                [k.strip() for k in response.output_text.split(",") if k.strip()]
-            ))[:3]
+            raw_text = response.output_text
+            keywords = [k.strip() for k in raw_text.split(",") if k.strip()]
+            keywords = list(dict.fromkeys(keywords))[:3]
 
         st.subheader("🔍 추천 키워드")
         st.write(keywords)
@@ -201,12 +183,12 @@ if st.button("📖 도서 추천 받기"):
         st.subheader("📚 추천 도서")
 
         for kw in keywords:
-            books = search_kakao_books(kw, year_range)
+            books = search_kakao_books(kw)
 
             st.markdown(f"### 🔑 {kw}")
 
             if not books:
-                st.caption("해당 연도 범위의 도서를 찾지 못했어요 😢")
+                st.caption("관련 도서를 찾지 못했어요 😢")
                 continue
 
             for book in books:
@@ -217,10 +199,10 @@ if st.button("📖 도서 추천 받기"):
                         st.image(book["thumbnail"], width=90)
 
                 with cols[1]:
-                    year = book["datetime"][:4] if book.get("datetime") else "미상"
-                    st.write(f"**{book['title']}** ({year})")
+                    st.write(f"**{book['title']}**")
                     st.caption(
-                        f"저자: {', '.join(book['authors'])} | 출판사: {book['publisher']}"
+                        f"저자: {', '.join(book['authors'])} | "
+                        f"출판사: {book['publisher']}"
                     )
 
             st.divider()
