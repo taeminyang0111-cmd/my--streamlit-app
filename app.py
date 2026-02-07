@@ -7,7 +7,7 @@ from openai import OpenAI
 # =========================
 st.set_page_config(page_title="취향 기반 도서 추천", page_icon="📚")
 st.title("📚 취향 기반 도서 추천")
-st.write("독서 경험과 취향, 그리고 지금의 상태까지 고려해 책을 추천해드려요.")
+st.write("독서 경험과 취향, 그리고 지금의 분위기까지 고려해 책을 추천해드려요.")
 
 # =========================
 # API KEY
@@ -39,7 +39,7 @@ def search_kakao_books(keyword, size=3):
         return []
 
 # =========================
-# Google Books API (문법 오류 수정 완료)
+# Google Books API
 # =========================
 def get_google_book_info(title):
     try:
@@ -50,21 +50,18 @@ def get_google_book_info(title):
         )
         res.raise_for_status()
         items = res.json().get("items", [])
-
         if not items:
             return {"description": "", "year": ""}
-
         info = items[0].get("volumeInfo", {})
         return {
             "description": info.get("description", ""),
             "year": info.get("publishedDate", "")[:4]
         }
-
     except requests.RequestException:
         return {"description": "", "year": ""}
 
 # =========================
-# 🧠 메인 프롬프트
+# 🧠 메인 프롬프트 (음악·영화 → 분위기 태그 강화)
 # =========================
 def build_main_prompt(user_input):
     return f"""
@@ -74,13 +71,19 @@ def build_main_prompt(user_input):
 
 분석 기준:
 - 독서 경험 수준과 선호 분야를 추천의 중심으로 삼는다.
-- 음악 취향과 영화 취향은 모든 사용자에게서 고려한다.
-  - 독서 경험이 적은 경우: 취향을 추정하는 핵심 힌트로 활용한다.
-  - 독서 경험이 많은 경우: 분위기와 서사 스타일을 정교화하는 보조 신호로 활용한다.
 - 현재 기분은 추천의 중심을 바꾸지 말고,
   책의 분위기와 접근 난이도를 조정하는 데에만 활용한다.
 
-추가 지시 (중요):
+중요 지침 (음악/영화 취향 활용):
+- 음악 취향과 영화 취향을 바탕으로
+  이 사용자의 '독서 분위기 태그'를 먼저 내부적으로 정의한다.
+  (예: 잔잔함, 감정 밀도, 서정적, 빠른 전개, 긴장감, 몰입감 등)
+- 이후 책 추천 시,
+  해당 분위기 태그와 잘 어울리는 감정선과 톤을 가진 책을 선택한다.
+- 이 분위기 태그는 추천의 중심을 흔들지 않으며,
+  추천의 질감과 체감 몰입도를 높이기 위한 용도로만 사용한다.
+
+추가 지시 (안정성 확보):
 1. 독서 경험이 적거나 최근에 관심이 생긴 사용자의 경우,
    반드시 끝까지 읽을 수 있을 가능성이 높은 책을 최우선으로 고려한다.
 2. 사용자가 선택한 선호 분야에서 벗어나는 추천은 피한다.
@@ -107,8 +110,10 @@ def build_reason_prompt(profile, title, description):
 {description}
 
 이 사용자에게 이 책을 추천하는 이유를
-독서 성향과 현재 기분을 반영해
-한 문장으로 자연스럽게 설명하라.
+음악·영화 취향에서 유추한 분위기와
+독서 성향이 자연스럽게 어울린다는 점이
+간접적으로 드러나도록
+한 문장으로 설명하라.
 """
 
 # =========================
@@ -142,7 +147,6 @@ book_field = st.radio(
         "가볍게 읽는 교양"
     ]
 )
-st.caption("※ 짧게 읽을 수 있는 글이나 여운이 남는 책을 좋아한다면 추천해요.")
 
 st.subheader("🙂 현재 기분")
 current_mood = st.radio(
