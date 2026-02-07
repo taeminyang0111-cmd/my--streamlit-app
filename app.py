@@ -7,7 +7,7 @@ from openai import OpenAI
 # =========================
 st.set_page_config(page_title="취향 기반 도서 추천", page_icon="📚")
 st.title("📚 취향 기반 도서 추천")
-st.write("독서 경험과 취향, 그리고 지금의 분위기까지 고려해 책을 추천해드려요.")
+st.write("독서 경험과 취향, 그리고 음악·영화 감성까지 고려해 책을 추천해드려요.")
 
 # =========================
 # API KEY
@@ -61,7 +61,7 @@ def get_google_book_info(title):
         return {"description": "", "year": ""}
 
 # =========================
-# 🧠 메인 프롬프트 (음악·영화 → 분위기 태그 강화)
+# 🧠 프롬프트들
 # =========================
 def build_main_prompt(user_input):
     return f"""
@@ -73,23 +73,14 @@ def build_main_prompt(user_input):
 - 독서 경험 수준과 선호 분야를 추천의 중심으로 삼는다.
 - 현재 기분은 추천의 중심을 바꾸지 말고,
   책의 분위기와 접근 난이도를 조정하는 데에만 활용한다.
+- 음악 취향과 영화 취향은 '독서 분위기 태그'로 변환해 활용한다.
 
-중요 지침 (음악/영화 취향 활용):
-- 음악 취향과 영화 취향을 바탕으로
-  이 사용자의 '독서 분위기 태그'를 먼저 내부적으로 정의한다.
-  (예: 잔잔함, 감정 밀도, 서정적, 빠른 전개, 긴장감, 몰입감 등)
-- 이후 책 추천 시,
-  해당 분위기 태그와 잘 어울리는 감정선과 톤을 가진 책을 선택한다.
-- 이 분위기 태그는 추천의 중심을 흔들지 않으며,
-  추천의 질감과 체감 몰입도를 높이기 위한 용도로만 사용한다.
+추가 지시:
+- 독서 입문자는 끝까지 읽을 수 있는 책을 최우선으로 고려한다.
+- 선호 분야에서 벗어나는 추천은 피한다.
+- 난해하거나 실험적인 책은 추천하지 않는다.
 
-추가 지시 (안정성 확보):
-1. 독서 경험이 적거나 최근에 관심이 생긴 사용자의 경우,
-   반드시 끝까지 읽을 수 있을 가능성이 높은 책을 최우선으로 고려한다.
-2. 사용자가 선택한 선호 분야에서 벗어나는 추천은 피한다.
-3. 실험적이거나 난해하고 부담이 큰 책은 추천하지 않는다.
-
-출력 형식 (반드시 지킬 것):
+출력 형식:
 독서성향: <한 문장>
 대표추천: <키워드 1개>
 보조추천: <키워드 1>, <키워드 2>
@@ -110,10 +101,24 @@ def build_reason_prompt(profile, title, description):
 {description}
 
 이 사용자에게 이 책을 추천하는 이유를
-음악·영화 취향에서 유추한 분위기와
-독서 성향이 자연스럽게 어울린다는 점이
-간접적으로 드러나도록
+독서 성향과 현재 기분을 반영해
 한 문장으로 설명하라.
+"""
+
+def build_taste_reason_prompt(title, music, movie):
+    return f"""
+책 제목:
+{title}
+
+사용자 음악 취향:
+{music}
+
+사용자 영화 취향:
+{movie}
+
+위 음악·영화 취향에서 느껴지는 분위기와 감정선을 기준으로,
+왜 이 책이 어울리는지 한 문장으로 설명하라.
+(책의 분위기, 감정 밀도, 몰입 방식 위주로)
 """
 
 # =========================
@@ -211,13 +216,21 @@ if st.button("📖 도서 추천 받기"):
         google_info = get_google_book_info(book["title"])
         year = book.get("datetime", "")[:4] or google_info["year"]
 
+        # 일반 추천 이유
         reason_res = client.responses.create(
             model="gpt-4o-mini",
             input=build_reason_prompt(profile, book["title"], google_info["description"]),
             temperature=0.7
         )
-
         reason = reason_res.output_text.strip()
+
+        # 🎧🎬 취향 전용 설명
+        taste_res = client.responses.create(
+            model="gpt-4o-mini",
+            input=build_taste_reason_prompt(book["title"], music, movie),
+            temperature=0.7
+        )
+        taste_reason = taste_res.output_text.strip()
 
         cols = st.columns([1, 4])
         with cols[0]:
@@ -226,5 +239,6 @@ if st.button("📖 도서 추천 받기"):
         with cols[1]:
             st.markdown(f"**{book['title']}** ({year})")
             st.caption(reason)
+            st.markdown(f"🎧🎬 *{taste_reason}*")
 
         st.divider()
