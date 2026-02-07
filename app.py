@@ -7,7 +7,7 @@ from openai import OpenAI
 # =========================
 st.set_page_config(page_title="취향 기반 도서 추천", page_icon="📚")
 st.title("📚 취향 기반 도서 추천")
-st.write("독서 경험과 취향, 그리고 감성까지 고려해 지금 당신에게 맞는 책을 추천해드려요.")
+st.write("독서 경험과 취향, 감성, 그리고 연령대까지 고려해 지금 당신에게 맞는 책을 추천해드려요.")
 
 # =========================
 # API KEY
@@ -75,7 +75,7 @@ def get_google_book_info(title):
         return {"description": "", "year": ""}
 
 # =========================
-# 🧠 메인 프롬프트
+# 🧠 메인 프롬프트 (연령대 반영)
 # =========================
 def build_main_prompt(user_input):
     return f"""
@@ -83,8 +83,10 @@ def build_main_prompt(user_input):
 
 분석 원칙:
 - 독서 경험과 선호 분야를 추천의 중심으로 삼는다.
+- 연령대는 추천의 중심을 바꾸지 말고,
+  해당 연령대에서 공감하기 쉬운 난이도, 관심사, 문체 톤을 조정하는 데에만 활용한다.
 - 음악/영화 취향은 독서 분위기 태그로 변환해 활용한다.
-- 현재 기분은 책의 톤과 접근 난이도만 조정한다.
+- 현재 기분은 책의 분위기와 접근 난이도만 조정한다.
 
 중요 제한:
 - 과학·기술·역사 분야에서도 문제집, 수험서, 교재는 제외한다.
@@ -133,6 +135,11 @@ def build_taste_reason_prompt(title, music, movie):
 # =========================
 # 질문 UI
 # =========================
+age_group = st.radio(
+    "🎂 연령대",
+    ["10대", "20대 초반", "20대 후반", "30대", "40대", "50대 이상"]
+)
+
 reading_experience = st.radio(
     "📖 평소 책을 얼마나 자주 읽나요?",
     [
@@ -185,6 +192,7 @@ movie = st.multiselect(
 # =========================
 if st.button("📖 도서 추천 받기"):
     user_profile = {
+        "연령대": age_group,
         "독서 경험": reading_experience,
         "선호 분야": book_field,
         "현재 기분": current_mood,
