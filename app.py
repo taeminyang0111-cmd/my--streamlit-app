@@ -36,7 +36,7 @@ def is_study_book(book):
     return any(bad in title for bad in BANNED_KEYWORDS)
 
 # =========================
-# Fallback 키워드 (분야별 안전망)
+# Fallback 키워드
 # =========================
 FALLBACK_KEYWORDS = {
     "과학·기술": "교양 과학 입문",
@@ -44,6 +44,23 @@ FALLBACK_KEYWORDS = {
     "경제·경영": "경제 교양서",
     "사회·시사": "사회 이야기 책",
     "인문·철학": "쉽게 읽는 인문학"
+}
+
+# =========================
+# UX 보조 맵
+# =========================
+LEVEL_MAP = {
+    "📚 자주 읽는다": "★★★☆☆",
+    "🙂 가끔 읽는다": "★★☆☆☆",
+    "😅 거의 읽지 않는다": "★☆☆☆☆",
+    "🆕 최근 관심이 생겼다": "★☆☆☆☆"
+}
+
+MOOD_ICON = {
+    "지치고 위로가 필요함": "🫂",
+    "차분함": "🌿",
+    "에너지가 넘침": "🔥",
+    "특별한 기분은 아님": "📖"
 }
 
 # =========================
@@ -86,7 +103,7 @@ def get_google_book_info(title):
         return {"description": "", "year": ""}
 
 # =========================
-# 🧠 프롬프트
+# 🧠 프롬프트 (원본 + UX 최소 추가)
 # =========================
 def build_main_prompt(user_input):
     return f"""
@@ -103,6 +120,10 @@ def build_main_prompt(user_input):
 - 교양서, 이야기형, 일반 독자용 책만 추천한다.
 - 실험적·난해한 책은 추천하지 않는다.
 - 독서 입문자는 끝까지 읽을 수 있는 책을 우선한다.
+
+추가 지침:
+- 결과는 분석 보고서가 아니라, 지금 이 사람에게 말을 거는 큐레이터의 톤으로 작성한다.
+- 딱 오늘 읽기 좋은 책을 골라주듯 자연스럽게 요약한다.
 
 출력 형식:
 독서성향: <한 문장>
@@ -123,8 +144,8 @@ def build_reason_prompt(profile, title, description):
 책 설명:
 {description}
 
-이 사용자에게 이 책을 추천하는 이유를
-한 문장으로 설명하라.
+이 책이 지금 이 사용자에게 왜 좋은지,
+친한 큐레이터가 말하듯 한 문장으로 설명하라.
 """
 
 def build_taste_reason_prompt(title, music, movie):
@@ -146,30 +167,15 @@ def build_taste_reason_prompt(title, music, movie):
 # =========================
 # 질문 UI
 # =========================
-age_group = st.radio(
-    "🎂 연령대",
-    ["10대", "20대 초반", "20대 후반", "30대", "40대", "50대 이상"]
-)
-
-reading_experience = st.radio(
-    "📖 독서 경험",
-    ["📚 자주 읽는다", "🙂 가끔 읽는다", "😅 거의 읽지 않는다", "🆕 최근 관심이 생겼다"]
-)
-
+age_group = st.radio("🎂 연령대", ["10대", "20대 초반", "20대 후반", "30대", "40대", "50대 이상"])
+reading_experience = st.radio("📖 독서 경험", ["📚 자주 읽는다", "🙂 가끔 읽는다", "😅 거의 읽지 않는다", "🆕 최근 관심이 생겼다"])
 book_field = st.radio(
     "📚 선호 분야",
-    [
-        "소설·문학", "에세이/시집", "자기계발", "인문·철학",
-        "사회·시사", "경제·경영", "과학·기술", "역사",
-        "판타지/SF", "추리·스릴러", "가볍게 읽는 교양"
-    ]
+    ["소설·문학", "에세이/시집", "자기계발", "인문·철학",
+     "사회·시사", "경제·경영", "과학·기술", "역사",
+     "판타지/SF", "추리·스릴러", "가볍게 읽는 교양"]
 )
-
-current_mood = st.radio(
-    "🙂 요즘 기분",
-    ["지치고 위로가 필요함", "차분함", "에너지가 넘침", "특별한 기분은 아님"]
-)
-
+current_mood = st.radio("🙂 요즘 기분", ["지치고 위로가 필요함", "차분함", "에너지가 넘침", "특별한 기분은 아님"])
 music = st.multiselect("🎶 음악 취향", ["발라드", "인디/밴드", "힙합/R&B", "팝", "클래식", "재즈"])
 movie = st.multiselect("🎬 영화 취향", ["드라마", "로맨스", "판타지/SF", "스릴러", "액션"])
 
@@ -194,16 +200,24 @@ if st.button("📖 도서 추천 받기"):
         )
 
         lines = [l for l in res.output_text.splitlines() if l.strip()]
-        profile = lines[0].replace("독서성향:", "").strip()
-        keyword = lines[1].replace("대표추천:", "").strip()
+        profile, keyword = "", ""
+        for l in lines:
+            if l.startswith("독서성향"):
+                profile = l.replace("독서성향:", "").strip()
+            if l.startswith("대표추천"):
+                keyword = l.replace("대표추천:", "").strip()
 
-    st.success("📌 당신의 독서 성향")
-    st.info(profile)
+    # =========================
+    # 독서 무드 카드
+    # =========================
+    st.subheader("📌 오늘의 독서 무드")
+    st.markdown(f"""
+    > **{profile}**  
+    > 오늘은 이 분위기의 책이 가장 잘 어울려요.
+    """)
 
-    # 1차 검색
     books = search_kakao_books(keyword)
 
-    # 🔁 fallback 검색
     if not books and book_field in FALLBACK_KEYWORDS:
         st.info("조금 더 일반적인 기준으로 다시 추천했어요 📚")
         books = search_kakao_books(FALLBACK_KEYWORDS[book_field])
@@ -212,29 +226,53 @@ if st.button("📖 도서 추천 받기"):
         st.warning("현재 조건에 맞는 도서를 찾지 못했어요 😢")
         st.stop()
 
+    # =========================
+    # 추천 카드
+    # =========================
     for book in books[:3]:
-        google = get_google_book_info(book["title"])
+        google = {"description": "", "year": ""}
+        if not book.get("contents"):
+            google = get_google_book_info(book["title"])
+
+        description = book.get("contents") or google["description"]
         year = book.get("datetime", "")[:4] or google["year"]
 
         reason = client.responses.create(
             model="gpt-4o-mini",
-            input=build_reason_prompt(profile, book["title"], google["description"]),
+            input=build_reason_prompt(profile, book["title"], description),
             temperature=0.7
         ).output_text.strip()
 
-        taste_reason = client.responses.create(
-            model="gpt-4o-mini",
-            input=build_taste_reason_prompt(book["title"], music, movie),
-            temperature=0.7
-        ).output_text.strip()
+        if music or movie:
+            taste_reason = client.responses.create(
+                model="gpt-4o-mini",
+                input=build_taste_reason_prompt(book["title"], music, movie),
+                temperature=0.7
+            ).output_text.strip()
+        else:
+            taste_reason = "전반적인 독서 분위기와 편안하게 어울리는 책이에요."
 
         cols = st.columns([1, 4])
         with cols[0]:
             if book.get("thumbnail"):
                 st.image(book["thumbnail"], width=90)
+
         with cols[1]:
             st.markdown(f"**{book['title']}** ({year})")
+            st.markdown(f"📘 **난이도** {LEVEL_MAP[reading_experience]}")
             st.caption(reason)
-            st.markdown(f"🎧🎬 *{taste_reason}*")
+
+            icon = MOOD_ICON.get(current_mood, "📖")
+            st.markdown(f"{icon} *{taste_reason}*")
 
         st.divider()
+
+    # =========================
+    # 후속 행동 UX
+    # =========================
+    st.subheader("📚 다음에 할 수 있어요")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.button("🔁 다른 분위기로 다시 추천받기")
+    with col2:
+        st.button("💾 나중에 읽기 목록에 저장")
