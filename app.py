@@ -7,7 +7,7 @@ from openai import OpenAI
 # =========================
 st.set_page_config(page_title="취향 기반 도서 추천", page_icon="📚")
 st.title("📚 취향 기반 도서 추천")
-st.write("독서 경험과 취향, 감성, 그리고 연령대까지 고려해 지금 당신에게 맞는 책을 추천해드려요.")
+st.write("독서 경험과 취향, 연령대와 감성까지 고려해 지금 당신에게 맞는 책을 추천해드려요.")
 
 # =========================
 # API KEY
@@ -34,6 +34,17 @@ BANNED_KEYWORDS = [
 def is_study_book(book):
     title = book.get("title", "")
     return any(bad in title for bad in BANNED_KEYWORDS)
+
+# =========================
+# Fallback 키워드 (분야별 안전망)
+# =========================
+FALLBACK_KEYWORDS = {
+    "과학·기술": "교양 과학 입문",
+    "역사": "이야기로 읽는 역사",
+    "경제·경영": "경제 교양서",
+    "사회·시사": "사회 이야기 책",
+    "인문·철학": "쉽게 읽는 인문학"
+}
 
 # =========================
 # Kakao Book API
@@ -75,7 +86,7 @@ def get_google_book_info(title):
         return {"description": "", "year": ""}
 
 # =========================
-# 🧠 메인 프롬프트 (연령대 반영)
+# 🧠 프롬프트
 # =========================
 def build_main_prompt(user_input):
     return f"""
@@ -83,10 +94,9 @@ def build_main_prompt(user_input):
 
 분석 원칙:
 - 독서 경험과 선호 분야를 추천의 중심으로 삼는다.
-- 연령대는 추천의 중심을 바꾸지 말고,
-  해당 연령대에서 공감하기 쉬운 난이도, 관심사, 문체 톤을 조정하는 데에만 활용한다.
+- 연령대는 난이도, 관심사, 문체 톤을 조정하는 데에만 활용한다.
 - 음악/영화 취향은 독서 분위기 태그로 변환해 활용한다.
-- 현재 기분은 책의 분위기와 접근 난이도만 조정한다.
+- 현재 기분은 오늘 읽기 좋은 분위기만 조정한다.
 
 중요 제한:
 - 과학·기술·역사 분야에서도 문제집, 수험서, 교재는 제외한다.
@@ -113,7 +123,7 @@ def build_reason_prompt(profile, title, description):
 책 설명:
 {description}
 
-왜 이 책이 이 사용자에게 좋은지
+이 사용자에게 이 책을 추천하는 이유를
 한 문장으로 설명하라.
 """
 
@@ -128,8 +138,9 @@ def build_taste_reason_prompt(title, music, movie):
 영화 취향:
 {movie}
 
-이 취향과 이 책의 분위기가
-왜 잘 어울리는지 한 문장으로 설명하라.
+이 취향에서 느껴지는 분위기와
+이 책의 감정선이 왜 잘 어울리는지
+한 문장으로 설명하라.
 """
 
 # =========================
@@ -141,51 +152,26 @@ age_group = st.radio(
 )
 
 reading_experience = st.radio(
-    "📖 평소 책을 얼마나 자주 읽나요?",
-    [
-        "📚 자주 읽는다",
-        "🙂 가끔 읽는다",
-        "😅 거의 읽지 않는다",
-        "🆕 최근 관심이 생겼다"
-    ]
+    "📖 독서 경험",
+    ["📚 자주 읽는다", "🙂 가끔 읽는다", "😅 거의 읽지 않는다", "🆕 최근 관심이 생겼다"]
 )
 
 book_field = st.radio(
-    "📚 선호하는 책의 분야",
+    "📚 선호 분야",
     [
-        "소설·문학",
-        "에세이/시집",
-        "자기계발",
-        "인문·철학",
-        "사회·시사",
-        "경제·경영",
-        "과학·기술",
-        "역사",
-        "판타지/SF",
-        "추리·스릴러",
-        "가볍게 읽는 교양"
+        "소설·문학", "에세이/시집", "자기계발", "인문·철학",
+        "사회·시사", "경제·경영", "과학·기술", "역사",
+        "판타지/SF", "추리·스릴러", "가볍게 읽는 교양"
     ]
 )
 
 current_mood = st.radio(
     "🙂 요즘 기분",
-    [
-        "지치고 위로가 필요함",
-        "차분하고 혼자 생각하고 싶음",
-        "에너지가 넘치고 자극이 필요함",
-        "특별한 기분은 아님"
-    ]
+    ["지치고 위로가 필요함", "차분함", "에너지가 넘침", "특별한 기분은 아님"]
 )
 
-music = st.multiselect(
-    "🎶 음악 취향",
-    ["발라드", "인디/밴드", "힙합/R&B", "팝", "클래식", "재즈"]
-)
-
-movie = st.multiselect(
-    "🎬 영화 취향",
-    ["드라마", "로맨스", "판타지/SF", "스릴러", "액션"]
-)
+music = st.multiselect("🎶 음악 취향", ["발라드", "인디/밴드", "힙합/R&B", "팝", "클래식", "재즈"])
+movie = st.multiselect("🎬 영화 취향", ["드라마", "로맨스", "판타지/SF", "스릴러", "액션"])
 
 # =========================
 # 추천 실행
@@ -207,17 +193,23 @@ if st.button("📖 도서 추천 받기"):
             temperature=0.6
         )
 
-        lines = res.output_text.splitlines()
+        lines = [l for l in res.output_text.splitlines() if l.strip()]
         profile = lines[0].replace("독서성향:", "").strip()
         keyword = lines[1].replace("대표추천:", "").strip()
 
     st.success("📌 당신의 독서 성향")
     st.info(profile)
 
+    # 1차 검색
     books = search_kakao_books(keyword)
 
+    # 🔁 fallback 검색
+    if not books and book_field in FALLBACK_KEYWORDS:
+        st.info("조금 더 일반적인 기준으로 다시 추천했어요 📚")
+        books = search_kakao_books(FALLBACK_KEYWORDS[book_field])
+
     if not books:
-        st.warning("적합한 도서를 찾지 못했어요 😢")
+        st.warning("현재 조건에 맞는 도서를 찾지 못했어요 😢")
         st.stop()
 
     for book in books[:3]:
