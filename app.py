@@ -224,8 +224,8 @@ with left:
             ]
         )
         current_mood = st.radio("🙂 요즘 기분", list(MOOD_ICON.keys()))
-        music = st.multiselect("🎶 음악 취향(선택)", ["발라드", "인디/밴드", "힙합/R&B", "팝", "클래식", "재즈"])
-        movie = st.multiselect("🎬 영화 취향(선택)", ["드라마", "로맨스", "판타지/SF", "스릴러", "액션"])
+        music = st.multiselect("🎶 음악 취향(필요에 따라 선택)", ["발라드", "인디/밴드", "힙합/R&B", "팝", "클래식", "재즈"])
+        movie = st.multiselect("🎬 영화 취향(필요에 따라 선택)", ["드라마", "로맨스", "판타지/SF", "스릴러", "액션"])
 
 # =========================
 # 오른쪽: 결과 + 버튼
@@ -296,3 +296,4 @@ with right:
                     st.markdown(f"{MOOD_ICON[current_mood]} *{taste_reason}*")
 
                 st.divider()
+
