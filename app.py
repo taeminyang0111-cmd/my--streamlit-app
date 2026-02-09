@@ -3,7 +3,7 @@ import requests
 from openai import OpenAI
 
 # =========================
-# 기본 설정 (⭐ wide 레이아웃)
+# 기본 설정 (WIDE)
 # =========================
 st.set_page_config(
     page_title="YOUR PERSONAL BOOK ASSISTANT",
@@ -97,7 +97,7 @@ MOOD_ICON = {
 }
 
 # =========================
-# API 함수
+# API
 # =========================
 def search_kakao_books(keyword, age_group, size=6):
     try:
@@ -137,16 +137,23 @@ def get_google_book_info(title):
         return {"description": "", "year": ""}
 
 # =========================
-# 프롬프트
+# 🧠 프롬프트 (원본 유지)
 # =========================
 def build_main_prompt(user_input):
     return f'''
 너는 한국 독서 추천 서비스의 전문 큐레이터다.
 
-- 독서 경험과 선호 분야를 중심으로 분석한다.
-- 연령대는 난이도 조정에만 활용한다.
-- 음악/영화 취향은 내부 분위기 참고용이다.
-- 문제집, 수험서, 아동서는 제외한다.
+분석 원칙:
+- 독서 경험과 선호 분야를 추천의 중심으로 삼는다.
+- 연령대는 난이도, 관심사, 문체 톤을 조정하는 데에만 활용한다.
+- 음악/영화 취향은 독서 분위기 태그로 변환해 활용한다.
+- 현재 기분은 오늘 읽기 좋은 분위기만 조정한다.
+
+중요 제한:
+- 과학·기술·역사 분야에서도 문제집, 수험서, 교재는 제외한다.
+- 교양서, 이야기형, 일반 독자용 책만 추천한다.
+- 실험적·난해한 책은 추천하지 않는다.
+- 독서 입문자는 끝까지 읽을 수 있는 책을 우선한다.
 
 출력 형식:
 독서성향: <한 문장>
@@ -168,9 +175,12 @@ def build_reason_prompt(profile, title, description):
 {description}
 
 이 책이 지금 이 사용자에게 왜 좋은지,
-책 자체에 집중해 한 문장으로 설명하라.
+한 문장으로 설명하라.
 '''
 
+# =========================
+# ✅ 수정된 최종 설명 프롬프트 (핵심 변경)
+# =========================
 def build_taste_reason_prompt(title, music, movie):
     return f'''
 책 제목:
@@ -180,28 +190,31 @@ def build_taste_reason_prompt(title, music, movie):
 - 음악 취향: {music}
 - 영화 취향: {movie}
 
-이 정보는 직접 언급하지 말고,
-이 책을 읽을 때 느껴질 전반적인 분위기를
-한 문장으로 설명하라.
+위 정보는 내부 참고용이다.
+설명에서는 음악, 영화, 취향이라는 단어를
+직접 언급하지 말고,
+
+이 책을 읽을 때 느껴질
+전반적인 분위기, 리듬, 몰입감,
+독서 경험의 인상을 한 문장으로 설명하라.
+
+취향과의 "어울림"이나 "맞음"을 강조하지 않는다.
 '''
 
 # =========================
-# ⭐ 좌/우 레이아웃 (BEST)
+# ⭐ 좌/우 레이아웃
 # =========================
 left, right = st.columns([1, 3])
 
 # =========================
-# 왼쪽: 입력 패널
+# 왼쪽: 입력
 # =========================
 with left:
     with st.container(border=True):
         st.subheader("🙋 사용자 정보")
 
         age_group = st.radio("🎂 연령대", list(AGE_FLOOR.keys()))
-        reading_experience = st.radio(
-            "📖 독서 빈도",
-            list(LEVEL_MAP.keys())
-        )
+        reading_experience = st.radio("📖 독서 빈도", list(LEVEL_MAP.keys()))
         book_field = st.radio(
             "📚 선호 분야",
             [
@@ -210,10 +223,7 @@ with left:
                 "판타지/SF", "추리·스릴러", "가볍게 읽는 교양"
             ]
         )
-        current_mood = st.radio(
-            "🙂 요즘 기분",
-            list(MOOD_ICON.keys())
-        )
+        current_mood = st.radio("🙂 요즘 기분", list(MOOD_ICON.keys()))
         music = st.multiselect("🎶 음악 취향(선택)", ["발라드", "인디/밴드", "힙합/R&B", "팝", "클래식", "재즈"])
         movie = st.multiselect("🎬 영화 취향(선택)", ["드라마", "로맨스", "판타지/SF", "스릴러", "액션"])
 
@@ -226,7 +236,9 @@ with right:
 
         run = st.button("📖 도서 추천 받기", use_container_width=True)
 
-        if run:
+        if not run:
+            st.info("왼쪽에서 정보를 입력한 뒤\n📖 **도서 추천 받기**를 눌러주세요.")
+        else:
             user_profile = {
                 "연령대": age_group,
                 "독서 경험": reading_experience,
@@ -284,6 +296,3 @@ with right:
                     st.markdown(f"{MOOD_ICON[current_mood]} *{taste_reason}*")
 
                 st.divider()
-
-        if not run:
-            st.info("왼쪽에서 정보를 입력한 뒤\n📖 **도서 추천 받기**를 눌러주세요.")
