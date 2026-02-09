@@ -207,7 +207,7 @@ def build_taste_reason_prompt(title, music, movie):
 age_group = st.radio("🎂 연령대", ["10대", "20대 초반", "20대 후반", "30대", "40대", "50대 이상"])
 reading_experience = st.radio("📖 독서 빈도", ["📚 자주 읽는다", "🙂 가끔 읽는다", "😅 거의 읽지 않는다", "🆕 최근 관심이 생겼다"])
 book_field = st.radio(
-    "📚 선호 분야",
+    "📚 선호 분야(관심 있는 분야)",
     ["소설·문학", "에세이/시집", "자기계발", "인문·철학",
      "사회·시사", "경제·경영", "과학·기술", "역사",
      "판타지/SF", "추리·스릴러", "가볍게 읽는 교양"]
@@ -293,5 +293,6 @@ if st.button("📖 도서 추천 받기"):
             st.markdown(f"{icon} *이 책의 분위기: {taste_reason}*")
 
         st.divider()
+
 
 
