@@ -6,7 +6,7 @@ from openai import OpenAI
 # 기본 설정
 # =========================
 st.set_page_config(page_title="YOUR PERSONAL BOOK ASSISTANT", page_icon="📚")
-st.title("📚 취향 기반 도서 추천")
+st.title("📚 YOUR PERSONAL BOOK ASSISTANT ")
 st.write("독서 경험과 취향, 연령대와 감성까지 고려해 지금 당신에게 맞는 책을 추천해드려요.")
 
 # =========================
@@ -293,6 +293,7 @@ if st.button("📖 도서 추천 받기"):
             st.markdown(f"{icon} *이 책의 분위기: {taste_reason}*")
 
         st.divider()
+
 
 
 
